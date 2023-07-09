@@ -1,11 +1,15 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Healthapp.DBContext;
+using Healthapp.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace JWTAuthentication.Controllers
 {
@@ -14,16 +18,20 @@ namespace JWTAuthentication.Controllers
     public class LoginController : Controller
     {
         private IConfiguration _config;
+        private HealthCareDBContext _myDbContext;
 
-        public LoginController(IConfiguration config)
+        public LoginController(IConfiguration config, HealthCareDBContext context)
         {
             _config = config;
+            _myDbContext = context;
         }
         [AllowAnonymous]
         [HttpPost]
-        public IActionResult Login([FromBody]UserModel login)
+        public IActionResult Login([FromBody] User login)
         {
             IActionResult response = Unauthorized();
+            login.userName = "abhilash";
+            login.password = "password";
             var user = AuthenticateUser(login);
 
             if (user != null)
@@ -35,15 +43,15 @@ namespace JWTAuthentication.Controllers
             return response;
         }
 
-        private string GenerateJSONWebToken(UserModel userInfo)
+        private string GenerateJSONWebToken(User userInfo)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
             var claims = new[] {
-                new Claim(JwtRegisteredClaimNames.Sub, userInfo.Username),
-                new Claim(JwtRegisteredClaimNames.Email, userInfo.EmailAddress),
-                new Claim("DateOfJoing", userInfo.DateOfJoing.ToString("yyyy-MM-dd")),
+                new Claim(JwtRegisteredClaimNames.Sub, userInfo.userName),
+                new Claim(JwtRegisteredClaimNames.Email, userInfo.emailId),
+                new Claim("CreationDateTime", userInfo.creationDateTime.ToString("yyyy-MM-dd")),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
@@ -56,17 +64,38 @@ namespace JWTAuthentication.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        private UserModel AuthenticateUser(UserModel login)
+        private User AuthenticateUser(User login)
         {
-            UserModel user = null;
-
-            //Validate the User Credentials
-            //Demo Purpose, I have Passed HardCoded User Information
-
-            //if (login.Username == "abhilash")
+            //User userModel = new Healthapp.Model.User
             //{
-                user = new UserModel { Username = "abhilash", EmailAddress = "abhilash.kushwaha@gmail.com", DateOfJoing = new DateTime(2010, 08, 02) };
-            //}
+            //    firstName = "Abhilash",
+            //    middleName = "kumar",
+            //    lastName = "kushwaha",
+
+            //    userName = "abhilash",
+            //    password = "password",
+            //    emailId = "Abhilash@gmail.com",
+
+            //    phoneNumber = "1234567890",
+            //    address = "test",
+            //    profilePicture = "pathhere",
+
+            //    isDoctor = true,
+            //    isActive = true,
+
+            //};
+
+            User user = null;
+            //bool isEmail = Regex.IsMatch(login.emailId, @"\A(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\Z", RegexOptions.IgnoreCase);
+            //bool isPhoneNumber = Regex.IsMatch(login.emailId, @"\(?\d{3}\)?-? *\d{3}-? *-?\d{4}", RegexOptions.IgnoreCase);
+
+            if (!string.IsNullOrEmpty(login.userName))
+            {
+                if (this._myDbContext.Users.Any(x => x.userName == login.userName && x.password == login.password))
+                {
+                    user = this._myDbContext.Users.Where(x => x.userName == login.userName && x.isActive == true).FirstOrDefault();
+                }
+            }
             return user;
         }
     }
